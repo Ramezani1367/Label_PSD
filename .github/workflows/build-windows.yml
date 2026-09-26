@@ -1,0 +1,57 @@
+name: Build Windows EXE
+
+# هر بار که چیزی push کنی، یا از تب Actions دستی اجرا کنی، exe ساخته می‌شود.
+on:
+  push:
+    branches: [main, master]
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: گرفتن سورس
+        uses: actions/checkout@v4
+
+      - name: نصب پایتون
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: نصب وابستگی‌ها
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyinstaller==6.11.1 pywin32==306
+
+      - name: ساخت exe (حالت onedir)
+        run: pyinstaller build.spec --noconfirm --clean
+
+      - name: افزودن فایل‌های جانبی کنار exe
+        shell: pwsh
+        run: |
+          Copy-Item "README-fa.md"            "dist/PSD-Label-Exporter/راهنما.md" -Force
+          Copy-Item "اجرای-حالت-دمو.bat"       "dist/PSD-Label-Exporter/" -Force
+          Get-ChildItem "dist/PSD-Label-Exporter" | Select-Object Name, Length
+
+      - name: بسته‌بندی ZIP
+        shell: pwsh
+        run: Compress-Archive -Path "dist/PSD-Label-Exporter/*" -DestinationPath "PSD-Label-Exporter-win64.zip" -Force
+
+      - name: آپلود خروجی (Artifact)
+        uses: actions/upload-artifact@v4
+        with:
+          name: PSD-Label-Exporter-win64
+          path: PSD-Label-Exporter-win64.zip
+          retention-days: 90
+
+      - name: ساخت Release (فقط وقتی تگ vX.Y بزنی)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: PSD-Label-Exporter-win64.zip
+          generate_release_notes: true
